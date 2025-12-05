@@ -70,7 +70,7 @@ optional default backbone (TinyLlama-1.1B-Chat-v1.0)
 
 Once downloaded, everything runs fully offline.
 
-2. Quick Start (Recommended)
+# -- Quick Start (Recommended) --
 
 This is the fastest way to get the sandbox running.
 If anything breaks, see Manual Configuration below.
