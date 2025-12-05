@@ -1,0 +1,25 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Venv
+venv/
+ENV/
+env/
+
+# Ignore all model contents, but keep the empty folder
+models/*
+!models/.gitkeep
+
+# Temp logs
+temp_event_log/*.json
+
+# IDE
+.vscode/
+.idea/
+
+# OS junk
+.DS_Store
+Thumbs.db
