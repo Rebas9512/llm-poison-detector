@@ -4,6 +4,7 @@ import platform
 import subprocess
 from pathlib import Path
 from typing import Any, Dict, List
+import sys
 
 import torch
 from dotenv import load_dotenv
@@ -155,8 +156,9 @@ def run_default_backbone_download() -> bool:
 
     print(f"[info] Running default backbone downloader: {script}")
     try:
+        python_exe = os.environ.get("PYTHON") or sys.executable
         result = subprocess.run(
-            [os.environ.get("PYTHON", "python"), str(script)],
+            [python_exe, str(script)],
             cwd=str(PROJECT_ROOT),
         )
     except Exception as e:  # noqa: BLE001
