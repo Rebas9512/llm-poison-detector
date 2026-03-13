@@ -1,0 +1,5 @@
+include readme.md
+include .env
+recursive-include static *.html *.js *.css
+recursive-include schema *.sql
+recursive-include data *.jsonl

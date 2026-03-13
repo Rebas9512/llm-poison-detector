@@ -1,17 +1,31 @@
 # Python
 __pycache__/
+**/__pycache__/
 *.pyc
 *.pyo
 *.pyd
 
-# Venv
+# Virtual environments
+.venv/
 venv/
 ENV/
 env/
 
-# Ignore all model contents, but keep the empty folder
+# Build / packaging artefacts
+*.egg-info/
+dist/
+build/
+
+# Test cache
+.pytest_cache/
+
+# Models — keep placeholder, ignore everything else
 models/*
 !models/.gitkeep
+
+# Database WAL/SHM temp files only — llm_poison.db is part of the distribution
+db/*.db-shm
+db/*.db-wal
 
 # Temp logs
 temp_event_log/*.json
@@ -23,3 +37,10 @@ temp_event_log/*.json
 # OS junk
 .DS_Store
 Thumbs.db
+
+# Claude Code session data
+.claude/
+
+# Private / local files
+LLM Prompt detector project final report_team3.docx
+*.docx

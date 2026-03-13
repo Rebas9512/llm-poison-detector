@@ -1,12 +1,18 @@
 # dashboard_api.py
 from typing import Any, Dict, List, Literal, Optional, Set
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
+import asyncio
+import gc
+import os
+import sys
 import uuid
 import importlib
 import random
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -61,6 +67,31 @@ class SelectBackboneRequest(BaseModel):
 
 WSMessage = PromptEvent | ResponseEvent | MetricsEvent | BatchStatusEvent
 
+# How long (seconds) all clients must be absent before models are unloaded.
+_IDLE_UNLOAD_DELAY: float = float(os.getenv("LLP_IDLE_UNLOAD_DELAY", "15"))
+
+
+# ---------------------------------------------------------------------
+# Model memory management
+# ---------------------------------------------------------------------
+
+
+def _unload_models() -> None:
+    """Clear model caches and free GPU VRAM in this process."""
+    with suppress(Exception):
+        _mr = sys.modules.get("scripts.models_runtime")
+        if _mr is not None:
+            _mr._MLC_CACHE.clear()
+            _mr._LLM_CACHE.clear()
+    gc.collect()
+    with suppress(Exception):
+        import torch
+
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+            with suppress(Exception):
+                torch.cuda.ipc_collect()
+
 
 # ---------------------------------------------------------------------
 # WebSocket connection + metrics
@@ -70,14 +101,32 @@ WSMessage = PromptEvent | ResponseEvent | MetricsEvent | BatchStatusEvent
 class ConnectionManager:
     def __init__(self) -> None:
         self.active_connections: Set[WebSocket] = set()
+        self._idle_task: asyncio.Task | None = None
 
     async def connect(self, websocket: WebSocket) -> None:
         await websocket.accept()
         self.active_connections.add(websocket)
+        # Cancel any pending idle-unload timer when a client reconnects.
+        if self._idle_task and not self._idle_task.done():
+            self._idle_task.cancel()
+            self._idle_task = None
 
     async def disconnect(self, websocket: WebSocket) -> None:
-        if websocket in self.active_connections:
-            self.active_connections.remove(websocket)
+        self.active_connections.discard(websocket)
+        # Schedule model unload if no clients remain.
+        if not self.active_connections:
+            self._idle_task = asyncio.create_task(
+                self._idle_unload(_IDLE_UNLOAD_DELAY)
+            )
+
+    async def _idle_unload(self, delay: float) -> None:
+        await asyncio.sleep(delay)
+        if not self.active_connections:
+            print(
+                f"[api] All clients disconnected for {delay:.0f}s "
+                "— unloading models to free VRAM."
+            )
+            _unload_models()
 
     async def broadcast(self, message: WSMessage | Dict[str, Any]) -> None:
         if hasattr(message, "model_dump"):
@@ -92,8 +141,7 @@ class ConnectionManager:
             except Exception:
                 dead.append(conn)
         for d in dead:
-            if d in self.active_connections:
-                self.active_connections.remove(d)
+            self.active_connections.discard(d)
 
 
 manager = ConnectionManager()
@@ -590,7 +638,26 @@ def iter_batch_for_api(
 # ---------------------------------------------------------------------
 
 
-app = FastAPI()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # ── Startup: preload safety model so the first request is fast ────────
+    try:
+        import scripts.models_runtime as _mr
+        _mr._load_mlc_model()
+        print("[api] Safety model preloaded.")
+    except Exception as exc:
+        print(f"[api] Safety model preload skipped: {exc}")
+
+    yield
+
+    # ── Shutdown: cancel idle timer, then release GPU / VRAM ─────────────
+    if manager._idle_task and not manager._idle_task.done():
+        manager._idle_task.cancel()
+    _unload_models()
+    print("[api] Model memory cleared.")
+
+
+app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
@@ -601,6 +668,18 @@ app.add_middleware(
 )
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon():
+    # Return 204 No Content — suppresses browser 404 noise without shipping a binary.
+    return Response(status_code=204)
+
+
+@app.get("/api/ready", include_in_schema=False)
+async def api_ready():
+    """Readiness probe used by run.py to detect when the server is up."""
+    return {"status": "ok"}
 
 
 @app.websocket("/ws/dashboard")

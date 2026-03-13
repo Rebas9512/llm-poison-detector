@@ -54,11 +54,25 @@ def main() -> None:
     )
     print("[ok] Download finished.")
     print()
-    print("To use this model, set in your .env:")
-    print(f"  MAIN_LLM_BACKEND=local")
-    print(f"  MAIN_LLM_MODEL_PATH=./models/{local_dir.name}")
-    print(f"  BASELINE_LLM_BACKEND=local")
-    print(f"  BASELINE_LLM_MODEL_PATH=./models/{local_dir.name}")
+
+    # Check whether .env already points to this model so we don't print
+    # misleading "you need to set these" instructions when defaults are fine.
+    model_rel = f"./models/{local_dir.name}"
+    env_file = PROJECT_ROOT / ".env"
+    env_src = env_file.read_text(encoding="utf-8") if env_file.exists() else ""
+    already_configured = (
+        f"MAIN_LLM_MODEL_PATH={model_rel}" in env_src
+        and f"BASELINE_LLM_MODEL_PATH={model_rel}" in env_src
+    )
+
+    if already_configured:
+        print(f"[ok] Your .env already points to {model_rel} — no changes needed.")
+    else:
+        print("Ensure your .env contains:")
+        print(f"  MAIN_LLM_BACKEND=local")
+        print(f"  MAIN_LLM_MODEL_PATH={model_rel}")
+        print(f"  BASELINE_LLM_BACKEND=local")
+        print(f"  BASELINE_LLM_MODEL_PATH={model_rel}")
     print()
     print("Done.")
 

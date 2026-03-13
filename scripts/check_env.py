@@ -398,23 +398,32 @@ def main():
         print("  - run an OpenAI-compatible server and set *_BACKEND=openai_api")
         print(f"  - type 'default' to download: {DEFAULT_BACKBONE_REPO} -> {DEFAULT_BACKBONE_DIR}")
         print()
-        user_in = input(
-            "Optional: enter a local HF model path for both main & baseline, "
-            "or type 'default' to auto-download (empty to skip): "
-        ).strip()
 
-        if user_in.lower() == "default":
+        # LLP_AUTO_BACKBONE=1: skip interactive prompt and download automatically.
+        # Useful for unattended installs: LLP_AUTO_BACKBONE=1 curl ... | bash
+        if os.environ.get("LLP_AUTO_BACKBONE") == "1":
+            print("[info] LLP_AUTO_BACKBONE=1 — auto-downloading default backbone ...")
             ok = run_default_backbone_download()
             if not ok:
                 print("[error] Default backbone download failed.")
-        elif user_in:
-            rp = resolve_path(user_in)
-            if rp and os.path.exists(rp):
-                os.environ["MAIN_LLM_MODEL_PATH"] = rp
-                os.environ["BASELINE_LLM_MODEL_PATH"] = rp
-                print(f"[ok] Using {rp} for MAIN_LLM_MODEL_PATH and BASELINE_LLM_MODEL_PATH (this run only).")
-            else:
-                print(f"[error] Path not found: {rp}")
+        else:
+            user_in = input(
+                "Optional: enter a local HF model path for both main & baseline, "
+                "or type 'default' to auto-download (empty to skip): "
+            ).strip()
+
+            if user_in.lower() == "default":
+                ok = run_default_backbone_download()
+                if not ok:
+                    print("[error] Default backbone download failed.")
+            elif user_in:
+                rp = resolve_path(user_in)
+                if rp and os.path.exists(rp):
+                    os.environ["MAIN_LLM_MODEL_PATH"] = rp
+                    os.environ["BASELINE_LLM_MODEL_PATH"] = rp
+                    print(f"[ok] Using {rp} for MAIN_LLM_MODEL_PATH and BASELINE_LLM_MODEL_PATH (this run only).")
+                else:
+                    print(f"[error] Path not found: {rp}")
         print()
 
     # OpenAI-compatible API check
