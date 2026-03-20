@@ -40,7 +40,3 @@ Thumbs.db
 
 # Claude Code session data
 .claude/
-
-# Private / local files
-LLM Prompt detector project final report_team3.docx
-*.docx

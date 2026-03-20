@@ -38,6 +38,7 @@ def clear_model_memory() -> None:
             mr._MLC_CACHE.clear()
             mr._LLM_CACHE.clear()
 
+
     gc.collect()
     with suppress(Exception):
         import torch
